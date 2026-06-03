@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Escolar Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        
+        <div id="tela-login" class="tela ativa">
+            <h2>🔐 Login Professor</h2>
+            <input id="login-user" type="text" placeholder="Nome Completo">
+            <input id="login-pass" type="password" placeholder="Senha">
+            <button onclick="entrar(event)">Entrar</button>
+            <p class="mudar-tela">Não tem conta? <span onclick="mudarTelaLogin('cadastro')">Cadastre-se</span></p>
+        </div>
+
+        <div id="tela-cadastro" class="tela">
+            <h2>📝 Cadastro de Professor</h2>
+            <input id="cad-user" type="text" placeholder="Nome Completo">
+            <input id="cad-escola" type="text" placeholder="Escola onde trabalha">
+            <input id="cad-pass" type="password" placeholder="Escolha uma Senha">
+            <button onclick="cadastrar()">Cadastrar</button>
+            <p class="mudar-tela">Já tem conta? <span onclick="mudarTelaLogin('login')">Faça Login</span></p>
+        </div>
+
+        <div id="tela-app" class="tela">
+            
+            <div class="header-escola">
+                <h3 id="nome-escola-topo">Carregando escola...</h3>
+                <p>📍 SBO - Estado de São Paulo | Avenida do Comércio, 597 - Jardim Esmeralda</p>
+                <span id="usuario-logado-info">Professor(a): ...</span>
+            </div>
+            
+            <div class="menu">
+                <button class="btn-menu ativo" onclick="navegar('aba-alunos', this)">Alunos</button>
+                <button class="btn-menu" onclick="navegar('aba-horarios', this)">Horários</button>
+                <button class="btn-menu" onclick="navegar('aba-grafico', this)">Gráfico Geral</button>
+                <button class="btn-menu" onclick="navegar('aba-ocorrencias', this)">Ocorrências</button>
+            </div>
+
+            <div id="aba-alunos" class="aba ativa">
+                <h3>👥 Diário de Classe</h3>
+                
+                <div class="row">
+                    <div class="col">
+                        <label>Filtro de Turma:</label>
+                        <select id="filtro-turma" onchange="carregarMaterias(); atualizarAlunos();">
+                            <optgroup label="Ensino Fundamental">
+                                <option value="6F">6º Ano - Fundamental</option>
+                                <option value="7F">7º Ano - Fundamental</option>
+                                <option value="8F">8º Ano - Fundamental</option>
+                                <option value="9F">9º Ano - Fundamental</option>
+                            </optgroup>
+                            <optgroup label="Ensino Médio">
+                                <option value="1M">1º Ano - Médio</option>
+                                <option value="2M">2º Ano - Médio</option>
+                                <option value="3M">3º Ano - Médio</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label>Matéria:</label>
+                        <select id="filtro-materia" onchange="atualizarAlunos()"></select>
+                    </div>
+                </div>
+
+                <div class="row" style="margin-top: 10px;">
+                    <div class="col">
+                        <label>Total de Aulas da Matéria no Ano/Semestre:</label>
+                        <input id="aulas-total" type="number" value="40" min="1" onchange="atualizarAlunos()">
+                    </div>
+                </div>
+
+                <hr>
+                
+                <button class="btn-novo" onclick="abrirPainelNovoAluno()">➕ Matricular Novo Aluno nesta Turma</button>
+
+                <div id="area-lancamento">
+                    <h4 id="titulo-painel">Ficha do Aluno (Selecione um na lista abaixo)</h4>
+                    
+                    <label>Nome Completo do Aluno:</label>
+                    <input id="aluno-nome-edit" type="text" placeholder="Nome e Sobrenome">
+
+                    <label>Notas Acadêmicas (Escala de 0.5 em 0.5 | Máx 5.0):</label>
+                    <div class="row">
+                        <div><small>Part.</small><input id="nota-part" type="number" min="0" max="5" step="0.5" value="0"></div>
+                        <div><small>Trab.</small><input id="nota-trab" type="number" min="0" max="5" step="0.5" value="0"></div>
+                        <div><small>Prov.</small><input id="nota-prov" type="number" min="0" max="5" step="0.5" value="0"></div>
+                    </div>
+                    
+                    <label>Total de Faltas nesta Matéria:</label>
+                    <input id="aluno-faltas" type="number" min="0" onchange="validarLimitesFaltas(this)">
+                    <div id="alerta-faltas-painel" class="status-alerta"></div>
+                    
+                    <label>Monitor de Comportamento do Aluno:</label>
+                    <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 4px;">
+                        <span id="aluno-qtd-ocorrencias" style="font-size: 13px; font-weight: bold; display: block; color: #334155;">Ocorrências Atuais: 0</span>
+                        <span id="aluno-nota-comportamento-painel" style="font-size: 12px; display: block; margin-bottom: 6px; color: #0284c7;">Nota Comportamental: 5.0 / 5.0</span>
+                        <div id="alerta-comportamento-painel" class="status-alerta"></div>
+                        <p style="font-size: 11px; color: #64748b; margin-top: 6px; line-height: 1.2;">*Nota: Para adicionar os textos detalhados ou excluir históricos, utilize a aba "Ocorrências".</p>
+                    </div>
+                    
+                    <div class="row" style="margin-top: 12px;">
+                        <button id="btn-salvar-nota" onclick="salvarDadosAluno()" class="col" disabled>Salvar Alterações</button>
+                        <button id="btn-deletar-aluno" onclick="excluirAluno()" class="col btn-perigo" disabled>Excluir Aluno</button>
+                    </div>
+                    <button onclick="fecharPainelLancamento()" class="btn-secundario" style="margin-top: 5px;">Limpar Seleção / Cancelar</button>
+                </div>
+
+                <div id="lista-alunos" class="lista"></div>
+            </div>
+
+            <div id="aba-horarios" class="aba">
+                <h3>📅 Quadro de Horários Semanal (Integral)</h3>
+                <p class="sub-info">Horários customizados com aulas geminadas por turma e intervalos fixos.</p>
+                <div id="grade-horarios" class="table-container"></div>
+            </div>
+
+            <div id="aba-grafico" class="aba">
+                <h3>📊 Desempenho Comparativo de Alunos</h3>
+                <p class="sub-info">Gráfico de 3 Eixos: Notas, Presença e Comportamento (Proporcionalizados à escala 15).</p>
+                <div class="chart-container">
+                    <canvas id="chartGeral"></canvas>
+                </div>
+            </div>
+
+            <div id="aba-ocorrencias" class="aba">
+                <h3>⚠️ Registro e Comunicados aos Pais</h3>
+                
+                <div class="row">
+                    <div class="col">
+                        <label>1. Escolha a Turma:</label>
+                        <select id="oc-turma" onchange="listarAlunosOcorrencia()">
+                            <option value="">-- Selecione uma Turma --</option>
+                            <option value="6F">6º Ano - Fundamental</option>
+                            <option value="7F">7º Ano - Fundamental</option>
+                            <option value="8F">8º Ano - Fundamental</option>
+                            <option value="9F">9º Ano - Fundamental</option>
+                            <option value="1M">1º Ano - Médio</option>
+                            <option value="2M">2º Ano - Médio</option>
+                            <option value="3M">3º Ano - Médio</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row" style="margin-top: 8px;">
+                    <div class="col">
+                        <label>2. Clique no Aluno Alvo:</label>
+                        <div id="oc-lista-alunos" class="lista-escolha">Selecione uma turma acima...</div>
+                    </div>
+                </div>
+
+                <div id="oc-bloco-registro" class="desativado" style="margin-top:12px; background: #f8fafc; padding:12px; border-radius:8px; border: 1px solid #cbd5e1;">
+                    <strong id="oc-nome-aluno-selecionado" style="color: #c2410c; display:block; margin-bottom:5px;">Aluno: Nenhum selecionado</strong>
+                    
+                    <label>Tipo de Encaminhamento/Comunicado:</label>
+                    <select id="oc-tipo">
+                        <option value="Comportamento">⚠️ Comportamento / Indisciplina</option>
+                        <option value="Faltas">❌ Excesso de Faltas</option>
+                        <option value="Atraso">🕒 Atrasos Frequentes</option>
+                        <option value="Notas">📉 Rendimento Baixo (Notas)</option>
+                        <option value="Outros">📝 Outros Assuntos</option>
+                    </select>
+
+                    <label>Descrição do Ocorrido:</label>
+                    <input id="oc-texto" type="text" placeholder="Descreva os detalhes para os pais...">
+                    <button onclick="addOcorrencia()" style="background: #c2410c;">Gravar e Notificar Responsáveis</button>
+                </div>
+
+                <hr>
+                <h4>Histórico de Comunicados Cadastrados</h4>
+                <div id="lista-ocorrencias" class="lista"></div>
+            </div>
+
+            <button class="btn-sair" onclick="sair()">Logout ➔</button>
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
